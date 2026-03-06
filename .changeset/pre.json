@@ -16,10 +16,12 @@
     "@vercel/sandbox": "1.10.2"
   },
   "changesets": [
+    "eight-rocks-argue",
     "fair-pears-dream",
     "fresh-rings-rescue",
     "light-results-change",
     "open-planets-joke",
-    "stale-hotels-grow"
+    "stale-hotels-grow",
+    "wet-goats-jam"
   ]
 }
