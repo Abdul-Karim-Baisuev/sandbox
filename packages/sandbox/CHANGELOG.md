@@ -1,5 +1,23 @@
 # sandbox
 
+## 3.0.0-beta.15
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @vercel/sandbox@2.0.0-beta.13
+
+## 3.0.0-beta.14
+
+### Minor Changes
+
+- Rebase from main
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @vercel/sandbox@2.0.0-beta.12
+
 ## 3.0.0-beta.13
 
 ### Patch Changes
