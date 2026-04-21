@@ -10,9 +10,23 @@ import type { Command, CommandFinished } from "./command";
 import type { Snapshot } from "./snapshot";
 import type { ConvertedSession } from "./utils/convert-sandbox";
 import type {
-    NetworkPolicy,
-} from "./network-policy";
-import { fromAPINetworkPolicy } from "./utils/network-policy";
+  SessionMetaData,
+  SandboxRouteData,
+  SandboxMetaData,
+  SnapshotMetadata,
+} from "./api-client/index.js";
+import { APIClient } from "./api-client/index.js";
+import { APIError } from "./api-client/api-error.js";
+import { type Credentials, getCredentials } from "./utils/get-credentials.js";
+import { getPrivateParams, type WithPrivate } from "./utils/types.js";
+import type { WithFetchOptions } from "./api-client/api-client.js";
+import type { RUNTIMES } from "./constants.js";
+import { Session, type RunCommandParams } from "./session.js";
+import type { Command, CommandFinished } from "./command.js";
+import type { Snapshot } from "./snapshot.js";
+import type { SandboxSnapshot } from "./utils/sandbox-snapshot.js";
+import type { NetworkPolicy } from "./network-policy.js";
+import { fromAPINetworkPolicy } from "./utils/network-policy.js";
 import { setTimeout } from "node:timers/promises";
 
 export type { NetworkPolicy };
@@ -818,11 +832,20 @@ export class Sandbox {
    *
    * @param opts - Optional parameters.
    * @param opts.signal - An AbortSignal to cancel the operation.
-   * @param opts.blocking - If true, poll until the sandbox has fully stopped and return the final state.
-   * @returns The sandbox at the time the stop was acknowledged, or after fully stopped if `blocking` is true.
+   * @returns The final session state after stopping, with optional snapshot metadata.
    */
-  async stop(opts?: { signal?: AbortSignal; blocking?: boolean }): Promise<ConvertedSession> {
-    return this.session.stop(opts);
+  async stop(opts?: {
+    signal?: AbortSignal;
+  }): Promise<SandboxSnapshot & { snapshot?: SnapshotMetadata }> {
+    "use step";
+    if (!this.session) {
+      throw new Error("No active session to stop.");
+    }
+    const { session, sandbox, snapshot } = await this.session.stop(opts);
+    if (sandbox) {
+      this.sandbox = sandbox;
+    }
+    return Object.assign(session, { snapshot });
   }
 
   /**
