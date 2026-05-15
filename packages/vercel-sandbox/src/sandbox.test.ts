@@ -578,10 +578,15 @@ for (const port of ports) {
       timeout: 60_000,
       persistent: true,
       snapshotExpiration: 7 * 86400000,
+      keepLastSnapshots: { count: 3 },
     });
 
     try {
       expect(sbx.snapshotExpiration).toBe(7 * 86400000);
+      expect(sbx.keepLastSnapshots).toMatchObject({
+        count: 3,
+        deleteEvicted: true,
+      });
       await sbx.stop();
 
       const { snapshotId } = await sbx.snapshot();
@@ -591,6 +596,11 @@ for (const port of ports) {
         timeout: 30_000,
         persistent: false,
         snapshotExpiration: 2 * 86400000,
+        keepLastSnapshots: {
+          count: 5,
+          expiration: 3 * 86400000,
+          deleteEvicted: false,
+        },
         currentSnapshotId: snapshotId,
       });
 
@@ -603,7 +613,37 @@ for (const port of ports) {
       expect(updated.timeout).toBe(30_000);
       expect(updated.persistent).toBe(false);
       expect(updated.snapshotExpiration).toBe(2 * 86400000);
+      expect(updated.keepLastSnapshots).toEqual({
+        count: 5,
+        expiration: 3 * 86400000,
+        deleteEvicted: false,
+      });
       expect(updated.currentSnapshotId).toBe(snapshotId);
+    } finally {
+      await sbx.delete();
+    }
+  });
+
+  it("clears keepLastSnapshots when updated with null", async () => {
+    const sbx = await Sandbox.create({
+      persistent: true,
+      keepLastSnapshots: {
+        count: 2,
+        expiration: 7 * 86400000,
+        deleteEvicted: true,
+      },
+    });
+
+    try {
+      expect(sbx.keepLastSnapshots).toMatchObject({ count: 2 });
+
+      await sbx.update({ keepLastSnapshots: null });
+
+      const cleared = await Sandbox.get({
+        name: sbx.name,
+        resume: false,
+      });
+      expect(cleared.keepLastSnapshots).toBeUndefined();
     } finally {
       await sbx.delete();
     }
