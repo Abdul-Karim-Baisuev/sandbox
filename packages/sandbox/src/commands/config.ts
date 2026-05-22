@@ -13,6 +13,7 @@ import { vcpusType } from "../args/vcpus";
 import { Duration } from "../types/duration";
 import { SnapshotExpiration } from "../types/snapshot-expiration";
 import { ObjectFromKeyValue } from "../args/key-value-pair";
+import { publishPorts } from "../args/ports";
 import ora from "ora";
 import chalk from "chalk";
 import ms from "ms";
@@ -460,6 +461,55 @@ const currentSnapshotCommand = cmd.command({
   },
 });
 
+const portsCommand = cmd.command({
+  name: "ports",
+  description:
+    "Update the published ports of a sandbox. Replaces all existing published ports.",
+  args: {
+    sandbox: cmd.positional({
+      type: sandboxName,
+      description: "Sandbox name to update",
+    }),
+    ports: publishPorts,
+    scope,
+  },
+  async handler({ scope: { token, team, project }, sandbox: name, ports }) {
+    const sandbox = await sandboxClient.get({
+      name,
+      projectId: project,
+      teamId: team,
+      token,
+    });
+
+    const spinner = ora("Updating sandbox ports...").start();
+    try {
+      await sandbox.update({ ports });
+      spinner.stop();
+
+      process.stderr.write(
+        "✅ Ports updated for sandbox " + chalk.cyan(name) + "\n",
+      );
+      if (ports.length === 0) {
+        process.stderr.write(chalk.dim("   ╰ ") + "all ports unpublished\n");
+      } else {
+        const routes = getPublishedRoutes(sandbox);
+        process.stderr.write(chalk.dim("   │ ") + "ports:\n");
+        for (let i = 0; i < ports.length; i++) {
+          const port = ports[i];
+          const route = routes?.find((route) => route.port === port);
+          const isLast = i === ports.length - 1;
+          const prefix = isLast ? chalk.dim("   ╰ ") : chalk.dim("   │ ");
+          const url = route ? " -> " + chalk.cyan(route.url) : "";
+          process.stderr.write(prefix + "• " + port + url + "\n");
+        }
+      }
+    } catch (error) {
+      spinner.stop();
+      throw error;
+    }
+  },
+});
+
 const listCommand = cmd.command({
   name: "list",
   description: "Display the current configuration of a sandbox",
@@ -493,6 +543,7 @@ const listCommand = cmd.command({
       { field: "Timeout", value: sandbox.timeout != null ? ms(sandbox.timeout, { long: true }) : "-" },
       { field: "Persistent", value: String(sandbox.persistent) },
       { field: "Network policy", value: String(networkPolicy) },
+      { field: "Ports", value: formatPorts(sandbox) },
       { field: "Snapshot expiration", value: sandbox.snapshotExpiration != null && sandbox.snapshotExpiration > 0 ? ms(sandbox.snapshotExpiration, { long: true }) : sandbox.snapshotExpiration === 0 ? "none" : "-" },
       { field: "Keep last snapshots", value: formatKeepLastSnapshots(sandbox.keepLastSnapshots) },
       { field: "Current snapshot", value: sandbox.currentSnapshotId ?? "-" },
@@ -658,6 +709,22 @@ function formatKeepLastSnapshots(
   return parts.join(", ");
 }
 
+function formatPorts(sandbox: Sandbox): string {
+  const ports = getPublishedRoutes(sandbox)?.map((route) => route.port) ?? [];
+
+  if (ports.length === 0) {
+    return "-";
+  }
+
+  return ports.join(", ");
+}
+
+function getPublishedRoutes(sandbox: Sandbox): Sandbox["routes"] | undefined {
+  return sandbox.routes.filter(
+    (route) => route.port !== sandbox.interactivePort,
+  );
+}
+
 export const config = cmd.subcommands({
   name: "config",
   description: "View and update sandbox configuration",
@@ -672,6 +739,7 @@ export const config = cmd.subcommands({
     "keep-last-snapshots-for": keepLastSnapshotsForCommand,
     "delete-evicted-snapshots": deleteEvictedSnapshotsCommand,
     "current-snapshot": currentSnapshotCommand,
+    ports: portsCommand,
     tags: tagsCommand,
   },
 });
