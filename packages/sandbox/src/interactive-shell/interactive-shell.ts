@@ -5,6 +5,7 @@ import {
   type Listener,
 } from "@vercel/pty-tunnel";
 import createDebugger from "debug";
+import retry from "async-retry";
 import { printCommand } from "../util/print-command";
 import ora, { Ora, spinners } from "ora";
 import { PassThrough } from "node:stream";
@@ -282,12 +283,13 @@ async function attach({
   debug("Connecting to WebSocket URL:", url);
 
   const stdoutPipe = messageReader(process.stdout);
-  const client = details.createClient(url);
-  client.addEventListener("message", async ({ data }) => {
-    stdoutPipe.next(data);
+  const client = await openWithRetry(() => {
+    const c = details.createClient(url);
+    c.addEventListener("message", async ({ data }) => {
+      stdoutPipe.next(data);
+    });
+    return c;
   });
-
-  await client.waitForOpen();
   progress.stop();
 
   using extensionController = createAbortController("stopped extensions");
@@ -385,6 +387,43 @@ async function connect(
     }
   }
   listener.stdoutStream.end();
+}
+
+async function openWithRetry<
+  T extends { waitForOpen(): Promise<unknown>; close(): void },
+>(create: () => T): Promise<T> {
+  return retry<T>(
+    async (_bail, attempt) => {
+      const client = create();
+      try {
+        await withTimeout(client.waitForOpen(), 2_500);
+        return client;
+      } catch (err) {
+        debug("WebSocket open attempt %d failed: %o", attempt, err);
+        try {
+          client.close();
+        } catch (closeErr) {
+          debug("WebSocket close after failed open errored: %o", closeErr);
+        }
+        throw err;
+      }
+    },
+    { retries: 2, minTimeout: 500, factor: 0 },
+  );
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  promise.catch(() => {});
+  let timer: NodeJS.Timeout | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error(`Operation timed out after ${ms}ms`)),
+      ms,
+    );
+  });
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
 }
 
 function getStderrStream() {
