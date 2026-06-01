@@ -221,6 +221,7 @@ export class APIClient extends BaseClient {
     env: Record<string, string>;
     sudo: boolean;
     wait: true;
+    timeout?: number;
     signal?: AbortSignal;
   }): Promise<{ command: CommandData; finished: Promise<CommandFinishedData> }>;
   async runCommand(params: {
@@ -231,6 +232,7 @@ export class APIClient extends BaseClient {
     env: Record<string, string>;
     sudo: boolean;
     wait?: false;
+    timeout?: number;
     signal?: AbortSignal;
   }): Promise<Parsed<z.infer<typeof CommandResponse>>>;
   async runCommand(params: {
@@ -241,6 +243,7 @@ export class APIClient extends BaseClient {
     env: Record<string, string>;
     sudo: boolean;
     wait?: boolean;
+    timeout?: number;
     signal?: AbortSignal;
   }) {
     if (params.wait) {
@@ -255,6 +258,7 @@ export class APIClient extends BaseClient {
             env: params.env,
             sudo: params.sudo,
             wait: true,
+            timeout: params.timeout,
           }),
           signal: params.signal,
         },
@@ -322,6 +326,7 @@ export class APIClient extends BaseClient {
           cwd: params.cwd,
           env: params.env,
           sudo: params.sudo,
+          timeout: params.timeout,
         }),
         signal: params.signal,
       }),

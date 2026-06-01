@@ -64,6 +64,12 @@ export interface RunCommandParams {
    * An AbortSignal to cancel the command execution
    */
   signal?: AbortSignal;
+  /**
+   * Maximum time in milliseconds the command may run before it is killed with
+   * SIGKILL. The timeout is enforced by the sandbox at exec time, so it applies
+   * whether or not the command is awaited (including `detached: true`).
+   */
+  timeoutMs?: number;
 }
 
 /**
@@ -354,12 +360,14 @@ export class Session {
    * @param args - Arguments to pass to the command.
    * @param opts - Optional parameters.
    * @param opts.signal - An AbortSignal to cancel the command execution.
+   * @param opts.timeoutMs - Maximum time in milliseconds to wait for the
+   * command to complete. On expiry the process is killed with SIGKILL.
    * @returns A {@link CommandFinished} result once execution is done.
    */
   async runCommand(
     command: string,
     args?: string[],
-    opts?: { signal?: AbortSignal },
+    opts?: { signal?: AbortSignal; timeoutMs?: number },
   ): Promise<CommandFinished>;
 
   /**
@@ -383,13 +391,18 @@ export class Session {
   async runCommand(
     commandOrParams: string | RunCommandParams,
     args?: string[],
-    opts?: { signal?: AbortSignal },
+    opts?: { signal?: AbortSignal; timeoutMs?: number },
   ): Promise<Command | CommandFinished> {
     "use step";
     const client = await this.ensureClient();
     const params: RunCommandParams =
       typeof commandOrParams === "string"
-        ? { cmd: commandOrParams, args, signal: opts?.signal }
+        ? {
+            cmd: commandOrParams,
+            args,
+            signal: opts?.signal,
+            timeoutMs: opts?.timeoutMs,
+          }
         : commandOrParams;
     const wait = params.detached ? false : true;
     const pipeLogs = async (command: Command): Promise<void> => {
@@ -422,6 +435,7 @@ export class Session {
         env: params.env ?? {},
         sudo: params.sudo ?? false,
         wait: true,
+        timeout: params.timeoutMs,
         signal: params.signal,
       });
 
@@ -450,6 +464,7 @@ export class Session {
       cwd: params.cwd,
       env: params.env ?? {},
       sudo: params.sudo ?? false,
+      timeout: params.timeoutMs,
       signal: params.signal,
     });
 
