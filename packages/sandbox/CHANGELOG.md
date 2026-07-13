@@ -1,5 +1,11 @@
 # sandbox
 
+## 3.4.3
+
+### Patch Changes
+
+- Retry transient authorization failures after refreshing a stored access token. ([#247](https://github.com/vercel/sandbox/pull/247))
+
 ## 3.4.2
 
 ### Patch Changes
